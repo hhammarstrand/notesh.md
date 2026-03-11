@@ -19,11 +19,11 @@
         - textbox "Search notes..." [ref=e16]
         - generic [ref=e18] [cursor=pointer]:
           - heading "Link Test" [level=3] [ref=e19]
-          - paragraph [ref=e20]: No content
+          - paragraph [ref=e20]: Check out [[Another Note]] for more info.
           - text: 3/11/2026
       - generic [ref=e21]:
         - generic [ref=e22]:
-          - textbox "Note title..." [active] [ref=e23]: Link Test
+          - textbox "Note title..." [ref=e23]: Link Test
           - generic [ref=e24]: Saved
         - combobox [ref=e26]:
           - option "Select a template..." [selected]
@@ -32,14 +32,15 @@
           - option "Project"
           - option "Book Note"
         - generic [ref=e27]:
-          - generic [ref=e28]: "Words: 0"
-          - generic [ref=e29]: "Reading: 0 min"
-          - generic [ref=e30]: "Links: 0"
+          - generic [ref=e28]: "Words: 7"
+          - generic [ref=e29]: "Reading: 1 min"
+          - generic [ref=e30]: "Links: 1"
         - code [ref=e33]:
           - generic [ref=e34]:
-            - textbox "Editor content" [ref=e35]
+            - textbox "Editor content" [active] [ref=e35]
             - textbox [ref=e36]
-  - generic [ref=e47]:
+            - generic [ref=e46]: Check out [[Another Note]] for more info.
+  - generic [ref=e50]:
     - alert
     - alert
 ```

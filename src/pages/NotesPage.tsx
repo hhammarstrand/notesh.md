@@ -7,7 +7,7 @@ export function NotesPage() {
   
   return (
     <>
-      <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+      <div className={`sidebar-container ${sidebarOpen ? 'open' : ''}`}>
         <Sidebar />
       </div>
       <NoteEditor />

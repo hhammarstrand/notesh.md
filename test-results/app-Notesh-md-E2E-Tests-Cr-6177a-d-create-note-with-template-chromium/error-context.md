@@ -15,29 +15,41 @@
       - generic [ref=e11]:
         - generic [ref=e12]:
           - heading "notesh.md" [level=1] [ref=e13]
-          - button "+ New Note" [ref=e14] [cursor=pointer]
+          - button "+ New Note" [active] [ref=e14] [cursor=pointer]
         - textbox "Search notes..." [ref=e16]
         - generic [ref=e18] [cursor=pointer]:
           - heading "Untitled Note" [level=3] [ref=e19]
-          - paragraph [ref=e20]: No content
+          - paragraph [ref=e20]: "# March 11, 2026 ## Morning - ## Tasks - [ ]"
           - text: 3/11/2026
       - generic [ref=e21]:
         - textbox "Note title..." [ref=e23]: Untitled Note
-        - combobox [active] [ref=e26]:
-          - option "Select a template..." [selected]
-          - option "Daily Note"
+        - combobox [ref=e26]:
+          - option "Select a template..."
+          - option "Daily Note" [selected]
           - option "Meeting"
           - option "Project"
           - option "Book Note"
         - generic [ref=e27]:
-          - generic [ref=e28]: "Words: 0"
-          - generic [ref=e29]: "Reading: 0 min"
+          - generic [ref=e28]: "Words: 21"
+          - generic [ref=e29]: "Reading: 1 min"
           - generic [ref=e30]: "Links: 0"
         - code [ref=e33]:
           - generic [ref=e34]:
             - textbox "Editor content" [ref=e35]
             - textbox [ref=e36]
-  - generic [ref=e47]:
+            - generic [ref=e76]:
+              - generic [ref=e78]: "# March 11, 2026"
+              - generic [ref=e81]: "## Morning"
+              - generic [ref=e83]: "-"
+              - generic [ref=e86]: "## Tasks"
+              - generic [ref=e88]: "- [ ]"
+              - generic [ref=e91]: "## Notes"
+              - generic [ref=e93]: "-"
+              - generic [ref=e96]: "## Evening"
+              - generic [ref=e98]: "-"
+              - generic [ref=e101]: "## Reflections"
+              - generic [ref=e103]: "-"
+  - generic [ref=e108]:
     - alert
     - alert
 ```
