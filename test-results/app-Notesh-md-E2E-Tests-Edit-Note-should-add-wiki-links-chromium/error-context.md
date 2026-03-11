@@ -1,0 +1,45 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - navigation [ref=e4]:
+      - link "Notes" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - link "Graph" [ref=e6] [cursor=pointer]:
+        - /url: /graph
+      - link "Settings" [ref=e7] [cursor=pointer]:
+        - /url: /settings
+      - button "☀️" [ref=e8] [cursor=pointer]
+    - generic [ref=e9]:
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - heading "notesh.md" [level=1] [ref=e13]
+          - button "+ New Note" [ref=e14] [cursor=pointer]
+        - textbox "Search notes..." [ref=e16]
+        - generic [ref=e18] [cursor=pointer]:
+          - heading "Link Test" [level=3] [ref=e19]
+          - paragraph [ref=e20]: No content
+          - text: 3/11/2026
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - textbox "Note title..." [active] [ref=e23]: Link Test
+          - generic [ref=e24]: Saved
+        - combobox [ref=e26]:
+          - option "Select a template..." [selected]
+          - option "Daily Note"
+          - option "Meeting"
+          - option "Project"
+          - option "Book Note"
+        - generic [ref=e27]:
+          - generic [ref=e28]: "Words: 0"
+          - generic [ref=e29]: "Reading: 0 min"
+          - generic [ref=e30]: "Links: 0"
+        - code [ref=e33]:
+          - generic [ref=e34]:
+            - textbox "Editor content" [ref=e35]
+            - textbox [ref=e36]
+  - generic [ref=e47]:
+    - alert
+    - alert
+```
