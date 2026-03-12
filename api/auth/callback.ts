@@ -42,11 +42,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+  const clientId = process.env.GITHUB_CLIENT_ID || '';
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET || '';
 
+  // For now, allow deployment without credentials (user can add them later)
   if (!clientId || !clientSecret) {
-    return res.status(500).json({ error: 'GitHub OAuth credentials not configured' });
+    console.warn('GitHub OAuth credentials not configured - OAuth will not work');
   }
 
   // Get code and state from query or body

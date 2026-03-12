@@ -9,9 +9,11 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientId = process.env.GITHUB_CLIENT_ID || '';
+
+  // For now, allow deployment without credentials (user can add them later)
   if (!clientId) {
-    return res.status(500).json({ error: 'GITHUB_CLIENT_ID not configured' });
+    console.warn('GITHUB_CLIENT_ID not configured - OAuth will not work');
   }
 
   // Get the frontend origin for redirect URI
@@ -26,10 +28,12 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
 
   // GitHub OAuth authorization URL
   const githubAuthUrl = new URL('https://github.com/login/oauth/authorize');
-  githubAuthUrl.searchParams.append('client_id', clientId);
-  githubAuthUrl.searchParams.append('redirect_uri', redirectUri);
-  githubAuthUrl.searchParams.append('scope', 'repo read:user');
-  githubAuthUrl.searchParams.append('state', state);
+  if (clientId) {
+    githubAuthUrl.searchParams.append('client_id', clientId);
+    githubAuthUrl.searchParams.append('redirect_uri', redirectUri);
+    githubAuthUrl.searchParams.append('scope', 'repo read:user');
+    githubAuthUrl.searchParams.append('state', state);
+  }
 
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
