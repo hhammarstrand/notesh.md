@@ -34,10 +34,5 @@
     "api/**/*.ts": {
       "maxDuration": 30
     }
-  },
-  "env": {
-    "GITHUB_CLIENT_ID": "@github_client_id",
-    "GITHUB_CLIENT_SECRET": "@github_client_secret",
-    "ENCRYPTION_SECRET": "@encryption_secret"
   }
 }
