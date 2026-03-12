@@ -490,3 +490,18 @@ body {
 .save-indicator.saved {
   color: var(--success);
 }
+
+.note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0.25rem 0;
+}
+
+.note-tag {
+  font-size: 0.7rem;
+  background: #4a90d9;
+  color: white;
+  padding: 0.1rem 0.4rem;
+  border-radius: 8px;
+}

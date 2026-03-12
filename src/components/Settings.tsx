@@ -1,106 +1,191 @@
-import { useState } from 'react';
-import { useGitHubStore } from '../stores/githubStore';
+import { useState, useEffect } from 'react';
 import { useNoteStore } from '../stores/noteStore';
-import { initGitHub, fetchNotesFromGitHub, uploadNoteToGitHub, checkForConflicts, syncAllNotes } from '../lib/github';
-import type { Note } from '../types';
+import { githubService, type Repository } from '../services/github';
+
+interface GitHubUser {
+  id: number;
+  login: string;
+  name: string | null;
+  email: string | null;
+  avatarUrl: string;
+}
 
 export function Settings() {
-  const { config, isConnected, isSyncing, lastSyncTime, syncStatus, setConfig, setConnected, setSyncing, setLastSyncTime, setSyncStatus, clearConfig } = useGitHubStore();
   const { notes, setNotes } = useNoteStore();
   
-  const [token, setToken] = useState('');
-  const [owner, setOwner] = useState('');
-  const [repo, setRepo] = useState('');
+  const [user, setUser] = useState<GitHubUser | null>(null);
+  const [repos, setRepos] = useState<Repository[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<string>('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showConflict, setShowConflict] = useState(false);
-  const [conflictData, setConflictData] = useState<{ local: Note; remote: Note } | null>(null);
-  
-  const handleConnect = async () => {
-    if (!token || !owner || !repo) {
-      setError('Please fill in all fields');
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<{ synced: number; failed: number } | null>(null);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const encryptedToken = localStorage.getItem('github_token');
+    const savedUser = localStorage.getItem('github_user');
+    const savedRepo = localStorage.getItem('github_repo');
+    
+    if (encryptedToken && savedUser) {
+      try {
+        const userData = JSON.parse(savedUser);
+        setUser(userData);
+        setIsConnected(true);
+        githubService.setEncryptedToken(encryptedToken);
+        
+        if (savedRepo) {
+          setSelectedRepo(savedRepo);
+        }
+        
+        // Load repos
+        loadRepos();
+      } catch {
+        // Invalid stored data, clear it
+        handleDisconnect();
+      }
+    }
+  }, []);
+
+  const loadRepos = async () => {
+    try {
+      const repoList = await githubService.listRepositories();
+      setRepos(repoList);
+    } catch (err) {
+      console.error('Failed to load repos:', err);
+    }
+  };
+
+  const handleLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Generate and store state for CSRF protection
+      const state = Math.random().toString(36).substring(7);
+      sessionStorage.setItem('github_oauth_state', state);
+      
+      const authUrl = await githubService.initiateAuth();
+      // Redirect to GitHub OAuth
+      window.location.href = authUrl;
+    } catch (err) {
+      setError('Failed to initialize GitHub login');
+      setIsLoading(false);
+    }
+  };
+
+  const handleDisconnect = () => {
+    localStorage.removeItem('github_token');
+    localStorage.removeItem('github_user');
+    localStorage.removeItem('github_repo');
+    setUser(null);
+    setRepos([]);
+    setSelectedRepo('');
+    setIsConnected(false);
+    githubService.clearToken();
+  };
+
+  const handleRepoSelect = (repoFullName: string) => {
+    setSelectedRepo(repoFullName);
+    localStorage.setItem('github_repo', repoFullName);
+  };
+
+  const handleCreateRepo = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const newRepo = await githubService.createRepository('notesh-md-notes', 'My notes from notesh.md', false);
+      setRepos([...repos, newRepo]);
+      setSelectedRepo(newRepo.fullName);
+      localStorage.setItem('github_repo', newRepo.fullName);
+    } catch (err) {
+      setError('Failed to create repository');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!selectedRepo) {
+      setError('Please select a repository first');
       return;
     }
     
-    try {
-      const newConfig = { token, owner, repo };
-      setConfig(newConfig);
-      initGitHub(newConfig);
-      setConnected(true);
-      setError(null);
-    } catch {
-      setError('Failed to connect to GitHub');
-    }
-  };
-  
-  const handleDisconnect = () => {
-    clearConfig();
-  };
-  
-  const handleSync = async () => {
-    if (!config) return;
-    
-    setSyncing(true);
+    setIsSyncing(true);
     setError(null);
+    setSyncStatus(null);
     
     try {
-      const result = await syncAllNotes(config.owner, config.repo, notes);
-      if (result.failed > 0) {
-        setError(`Sync completed with ${result.failed} errors`);
-      }
-      setLastSyncTime(new Date().toISOString());
-    } catch (err) {
-      setError('Sync failed: ' + String(err instanceof Error ? err.message : err));
-    }
-    
-    setSyncing(false);
-  };
-  
-  const handleImport = async () => {
-    if (!config) return;
-    
-    setSyncing(true);
-    setError(null);
-    
-    try {
+      const [owner, repo] = selectedRepo.split('/');
+      
+      let synced = 0;
+      let failed = 0;
+      
       for (const note of notes) {
-        const conflict = await checkForConflicts(config.owner, config.repo, note);
-        if (conflict.hasConflict && conflict.remoteNote) {
-          setConflictData({ local: note, remote: conflict.remoteNote });
-          setShowConflict(true);
-          setSyncStatus({ hasConflict: true, conflictData: { local: note, remote: conflict.remoteNote } });
-          break;
+        try {
+          await githubService.saveNote(owner, repo, {
+            title: note.title,
+            content: note.content,
+            tags: note.tags,
+            filename: `${note.title.toLowerCase().replace(/\s+/g, '-')}.md`
+          });
+          synced++;
+        } catch {
+          failed++;
         }
       }
       
-      if (!showConflict) {
-        const importedNotes = await fetchNotesFromGitHub(config.owner, config.repo);
-        setNotes(importedNotes);
-        setLastSyncTime(new Date().toISOString());
-      }
-    } catch (err) {
-      setError('Import failed: ' + String(err instanceof Error ? err.message : err));
-    }
-    
-    setSyncing(false);
-  };
-  
-  const resolveConflict = async (resolution: 'local' | 'remote') => {
-    if (!config || !conflictData) return;
-    
-    const note = resolution === 'local' ? conflictData.local : conflictData.remote;
-    
-    try {
-      await uploadNoteToGitHub(config.owner, config.repo, note);
+      setSyncStatus({ synced, failed });
       setLastSyncTime(new Date().toISOString());
     } catch (err) {
-      setError('Failed to resolve conflict: ' + String(err instanceof Error ? err.message : err));
+      setError('Sync failed: ' + String(err instanceof Error ? err.message : err));
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!selectedRepo) {
+      setError('Please select a repository first');
+      return;
     }
     
-    setShowConflict(false);
-    setConflictData(null);
-    setSyncStatus({ hasConflict: false });
+    setIsSyncing(true);
+    setError(null);
+    
+    try {
+      const [owner, repo] = selectedRepo.split('/');
+      const remoteNotes = await githubService.listNotes(owner, repo);
+      
+      // Convert GitHub notes to app format
+      const convertedNotes = remoteNotes.map(note => ({
+        id: note.id || crypto.randomUUID(),
+        title: note.metadata.title || note.title,
+        content: note.content,
+        tags: note.metadata.tags || [],
+        createdAt: note.metadata.created || new Date().toISOString(),
+        updatedAt: note.metadata.updated || new Date().toISOString(),
+        linkedNotes: []
+      }));
+      
+      // Merge with local notes
+      const existingIds = new Set(notes.map(n => n.id));
+      const newNotes = convertedNotes.filter(n => !existingIds.has(n.id));
+      
+      setNotes([...notes, ...newNotes]);
+      setLastSyncTime(new Date().toISOString());
+    } catch (err) {
+      setError('Import failed: ' + String(err instanceof Error ? err.message : err));
+    } finally {
+      setIsSyncing(false);
+    }
   };
-  
+
   return (
     <div className="settings-container">
       <h2>Settings</h2>
@@ -116,56 +201,85 @@ export function Settings() {
         
         {!isConnected ? (
           <div className="settings-form">
-            <div className="form-group">
-              <label>Personal Access Token</label>
-              <input
-                type="password"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="ghp_..."
-              />
-            </div>
-            <div className="form-group">
-              <label>Owner</label>
-              <input
-                type="text"
-                value={owner}
-                onChange={(e) => setOwner(e.target.value)}
-                placeholder="username"
-              />
-            </div>
-            <div className="form-group">
-              <label>Repository</label>
-              <input
-                type="text"
-                value={repo}
-                onChange={(e) => setRepo(e.target.value)}
-                placeholder="my-notes"
-              />
-            </div>
-            <button onClick={handleConnect} className="btn-primary">
-              Connect
+            <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+              Connect your GitHub account to sync notes across devices.
+            </p>
+            <button 
+              onClick={handleLogin} 
+              className="btn-primary"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Connecting...' : '🔗 Login with GitHub'}
             </button>
           </div>
         ) : (
           <div className="connected-info">
-            <p>Connected to: {config?.owner}/{config?.repo}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              {user?.avatarUrl && (
+                <img 
+                  src={user.avatarUrl} 
+                  alt={user.login}
+                  style={{ width: 48, height: 48, borderRadius: '50%' }}
+                />
+              )}
+              <div>
+                <p style={{ fontWeight: 600 }}>{user?.name || user?.login}</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  @{user?.login}
+                </p>
+              </div>
+            </div>
+            
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label>Select Repository</label>
+              <select
+                value={selectedRepo}
+                onChange={(e) => handleRepoSelect(e.target.value)}
+                disabled={isSyncing}
+              >
+                <option value="">Choose a repository...</option>
+                {repos.map((repo) => (
+                  <option key={repo.id} value={repo.fullName}>
+                    {repo.fullName} {repo.private ? '(private)' : '(public)'}
+                  </option>
+                ))}
+              </select>
+              <button 
+                onClick={handleCreateRepo} 
+                className="btn-secondary"
+                disabled={isLoading}
+                style={{ marginTop: '0.5rem' }}
+              >
+                {isLoading ? 'Creating...' : '+ Create new notes repo'}
+              </button>
+            </div>
+            
             {lastSyncTime && (
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                 Last synced: {new Date(lastSyncTime).toLocaleString()}
               </p>
             )}
-            {syncStatus.pendingChanges > 0 && (
-              <p style={{ fontSize: '0.875rem', color: 'var(--warning)' }}>
-                {syncStatus.pendingChanges} pending changes
+            
+            {syncStatus && (
+              <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+                {syncStatus.synced} synced, {syncStatus.failed} failed
               </p>
             )}
+            
             <div className="button-group">
-              <button onClick={handleSync} disabled={isSyncing} className="btn-primary">
-                {isSyncing ? 'Syncing...' : 'Sync Notes'}
+              <button 
+                onClick={handleSync} 
+                disabled={isSyncing || !selectedRepo} 
+                className="btn-primary"
+              >
+                {isSyncing ? 'Syncing...' : '☁️ Sync to GitHub'}
               </button>
-              <button onClick={handleImport} disabled={isSyncing} className="btn-secondary">
-                Import
+              <button 
+                onClick={handleImport} 
+                disabled={isSyncing || !selectedRepo} 
+                className="btn-secondary"
+              >
+                📥 Import from GitHub
               </button>
               <button onClick={handleDisconnect} className="btn-danger">
                 Disconnect
@@ -180,31 +294,6 @@ export function Settings() {
         <p>notesh.md - A modern note-taking app with graph view</p>
         <p className="version">Version 1.0.0</p>
       </section>
-      
-      {showConflict && conflictData && (
-        <div className="conflict-modal">
-          <div className="conflict-content">
-            <h3>Conflict Detected</h3>
-            <p>A conflict was detected for note: <strong>{conflictData.local.title}</strong></p>
-            <p>Local version: {new Date(conflictData.local.updatedAt).toLocaleString()}</p>
-            <p>Remote version: {new Date(conflictData.remote.updatedAt).toLocaleString()}</p>
-            <div className="conflict-buttons">
-              <button 
-                className="btn-primary" 
-                onClick={() => resolveConflict('local')}
-              >
-                Keep Local
-              </button>
-              <button 
-                className="btn-secondary" 
-                onClick={() => resolveConflict('remote')}
-              >
-                Keep Remote
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -4,12 +4,17 @@ import { useNoteStore } from '../stores/noteStore';
 import { debounce, generateId } from '../lib/utils';
 import { templates, applyTemplate, getTemplateById } from '../templates';
 import { executeAllPlugins } from '../plugins';
+import { marked } from 'marked';
+import { TagInput } from './TagInput';
+import './Editor.css';
 
 export function NoteEditor() {
-  const { notes, activeNoteId, updateNote, addNote, setActiveNote } = useNoteStore();
+  const { notes, activeNoteId, updateNote, addNote, setActiveNote, deleteNote } = useNoteStore();
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
   
   const activeNote = useMemo(
     () => notes.find((n) => n.id === activeNoteId),
@@ -56,6 +61,34 @@ export function NoteEditor() {
     },
     [activeNoteId, updateNote]
   );
+
+  const handleTagAdd = useCallback((tag: string) => {
+    if (activeNoteId && activeNote && tag.trim() && !activeNote.tags.includes(tag.trim())) {
+      setIsSaving(true);
+      updateNote(activeNoteId, {
+        tags: [...activeNote.tags, tag.trim()],
+        updatedAt: new Date().toISOString()
+      });
+      setTimeout(() => {
+        setIsSaving(false);
+        setLastSaved(new Date());
+      }, 500);
+    }
+  }, [activeNoteId, activeNote, updateNote]);
+
+  const handleTagRemove = useCallback((tagToRemove: string) => {
+    if (activeNoteId && activeNote) {
+      setIsSaving(true);
+      updateNote(activeNoteId, {
+        tags: activeNote.tags.filter(tag => tag !== tagToRemove),
+        updatedAt: new Date().toISOString()
+      });
+      setTimeout(() => {
+        setIsSaving(false);
+        setLastSaved(new Date());
+      }, 500);
+    }
+  }, [activeNoteId, activeNote, updateNote]);
   
   const handleTemplateChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const templateId = e.target.value;
@@ -83,6 +116,13 @@ export function NoteEditor() {
     addNote(newNote);
     setActiveNote(newNote.id);
   }, [addNote, setActiveNote]);
+
+  const handleDelete = useCallback(() => {
+    if (activeNoteId) {
+      deleteNote(activeNoteId);
+      setShowDeleteConfirm(false);
+    }
+  }, [activeNoteId, deleteNote]);
   
   const pluginStats = useMemo(() => {
     if (!activeNote) return null;
@@ -129,12 +169,40 @@ export function NoteEditor() {
         <div className="save-indicator" data-testid="save-indicator">
           {isSaving ? 'Saving...' : lastSaved ? 'Saved' : ''}
         </div>
+        <button 
+          className="btn-danger" 
+          onClick={() => setShowDeleteConfirm(true)}
+          data-testid="delete-btn"
+          title="Delete note"
+        >
+          🗑️
+        </button>
       </div>
-      <div className="template-selector" style={{ marginBottom: '1rem' }}>
+      {showDeleteConfirm && (
+        <div className="delete-confirm" style={{ 
+          padding: '1rem', 
+          background: '#ff6b6b22', 
+          border: '1px solid #ff6b6b',
+          borderRadius: '8px',
+          marginBottom: '1rem'
+        }}>
+          <p>Delete "{activeNote.title}"?</p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn-danger" onClick={handleDelete} data-testid="confirm-delete">
+              Delete
+            </button>
+            <button className="btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="template-selector" style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
         <select 
           value={selectedTemplate} 
           onChange={handleTemplateChange}
           data-testid="template-selector"
+          style={{ flex: 1 }}
         >
           <option value="">Select a template...</option>
           {templates.map((t) => (
@@ -143,6 +211,30 @@ export function NoteEditor() {
             </option>
           ))}
         </select>
+        <div className="view-toggle" style={{ display: 'flex', gap: '0.25rem' }}>
+          <button 
+            className={viewMode === 'edit' ? 'btn-active' : 'btn-secondary'}
+            onClick={() => setViewMode('edit')}
+            title="Edit"
+          >
+            ✏️
+          </button>
+          <button 
+            className={viewMode === 'preview' ? 'btn-active' : 'btn-secondary'}
+            onClick={() => setViewMode('preview')}
+            title="Preview"
+            data-testid="preview-btn"
+          >
+            👁️
+          </button>
+          <button 
+            className={viewMode === 'split' ? 'btn-active' : 'btn-secondary'}
+            onClick={() => setViewMode('split')}
+            title="Split"
+          >
+            ↔️
+          </button>
+        </div>
       </div>
       {pluginStats && (
         <div className="plugin-stats" style={{ marginBottom: '1rem' }}>
@@ -157,20 +249,44 @@ export function NoteEditor() {
           )}
         </div>
       )}
-      <Editor
-        height="calc(100vh - 220px)"
-        defaultLanguage="markdown"
-        value={activeNote.content}
-        onChange={handleEditorChange}
-        theme="vs-dark"
-        options={{
-          minimap: { enabled: false },
-          wordWrap: 'on',
-          fontSize: 14,
-          lineNumbers: 'off',
-          padding: { top: 16 }
-        }}
-      />
+      <div style={{ marginBottom: '1rem' }}>
+        <TagInput 
+          tags={activeNote.tags} 
+          onAdd={handleTagAdd} 
+          onRemove={handleTagRemove} 
+        />
+      </div>
+      {(viewMode === 'edit' || viewMode === 'split') && (
+        <Editor
+          height={viewMode === 'split' ? 'calc(50vh - 150px)' : 'calc(100vh - 280px)'}
+          defaultLanguage="markdown"
+          value={activeNote.content}
+          onChange={handleEditorChange}
+          theme="vs-dark"
+          options={{
+            minimap: { enabled: false },
+            wordWrap: 'on',
+            fontSize: 14,
+            lineNumbers: 'off',
+            padding: { top: 16 }
+          }}
+        />
+      )}
+      {(viewMode === 'preview' || viewMode === 'split') && (
+        <div 
+          className="markdown-preview"
+          data-testid="markdown-preview"
+          style={{
+            height: viewMode === 'split' ? 'calc(50vh - 150px)' : 'calc(100vh - 280px)',
+            overflow: 'auto',
+            padding: '1rem',
+            background: '#1e1e1e',
+            border: viewMode === 'split' ? '1px solid #333' : 'none',
+            borderRadius: '4px'
+          }}
+          dangerouslySetInnerHTML={{ __html: marked(activeNote.content || '') }}
+        />
+      )}
     </div>
   );
 }

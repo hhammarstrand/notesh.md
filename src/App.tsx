@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { NotesPage } from './pages/NotesPage';
 import { GraphPage } from './pages/GraphPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AuthCallback } from './pages/AuthCallback';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
           <Route path="graph" element={<GraphPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
+        <Route path="/auth/callback" element={<AuthCallback />} />
       </Routes>
     </BrowserRouter>
   );

@@ -60,6 +60,13 @@ export function Sidebar() {
             <p className="note-preview">
               {note.content.slice(0, 50) || 'No content'}
             </p>
+            {note.tags.length > 0 && (
+              <div className="note-tags">
+                {note.tags.map((tag) => (
+                  <span key={tag} className="note-tag">#{tag}</span>
+                ))}
+              </div>
+            )}
             <span className="note-date">
               {new Date(note.updatedAt).toLocaleDateString()}
             </span>
