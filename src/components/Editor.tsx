@@ -1,10 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import Editor from '@monaco-editor/react';
+import MDEditor from '@uiw/react-md-editor';
 import { useNoteStore } from '../stores/noteStore';
 import { debounce, generateId } from '../lib/utils';
 import { templates, applyTemplate, getTemplateById } from '../templates';
-import { executeAllPlugins } from '../plugins';
-import { marked } from 'marked';
 import { TagInput } from './TagInput';
 import './Editor.css';
 
@@ -14,7 +12,6 @@ export function NoteEditor() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
   
   const activeNote = useMemo(
     () => notes.find((n) => n.id === activeNoteId),
@@ -124,11 +121,6 @@ export function NoteEditor() {
     }
   }, [activeNoteId, deleteNote]);
   
-  const pluginStats = useMemo(() => {
-    if (!activeNote) return null;
-    return executeAllPlugins(activeNote.content);
-  }, [activeNote]);
-  
   if (!activeNote) {
     return (
       <div className="editor-placeholder">
@@ -156,38 +148,55 @@ export function NoteEditor() {
   }
   
   return (
-    <div className="editor-container">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+    <div className="editor-container" data-color-mode="dark">
+      <div className="editor-header">
         <input
           type="text"
           value={activeNote.title}
           onChange={handleTitleChange}
           className="editor-title"
           placeholder="Note title..."
-          style={{ flex: 1, marginBottom: 0 }}
         />
-        <div className="save-indicator" data-testid="save-indicator">
-          {isSaving ? 'Saving...' : lastSaved ? 'Saved' : ''}
+        <div className="editor-actions">
+          <span className="save-indicator" data-testid="save-indicator">
+            {isSaving ? 'Saving...' : lastSaved ? 'Saved' : ''}
+          </span>
+          <button 
+            className="btn-icon delete-btn"
+            onClick={() => setShowDeleteConfirm(true)}
+            data-testid="delete-btn"
+            title="Delete note"
+          >
+            🗑️
+          </button>
         </div>
-        <button 
-          className="btn-danger" 
-          onClick={() => setShowDeleteConfirm(true)}
-          data-testid="delete-btn"
-          title="Delete note"
-        >
-          🗑️
-        </button>
       </div>
+
+      <div className="editor-toolbar">
+        <select 
+          value={selectedTemplate} 
+          onChange={handleTemplateChange}
+          data-testid="template-selector"
+          className="template-select"
+        >
+          <option value="">Template...</option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        <TagInput 
+          tags={activeNote.tags} 
+          onAdd={handleTagAdd} 
+          onRemove={handleTagRemove} 
+        />
+      </div>
+      
       {showDeleteConfirm && (
-        <div className="delete-confirm" style={{ 
-          padding: '1rem', 
-          background: '#ff6b6b22', 
-          border: '1px solid #ff6b6b',
-          borderRadius: '8px',
-          marginBottom: '1rem'
-        }}>
+        <div className="delete-confirm">
           <p>Delete "{activeNote.title}"?</p>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div className="delete-confirm-buttons">
             <button className="btn-danger" onClick={handleDelete} data-testid="confirm-delete">
               Delete
             </button>
@@ -197,96 +206,16 @@ export function NoteEditor() {
           </div>
         </div>
       )}
-      <div className="template-selector" style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-        <select 
-          value={selectedTemplate} 
-          onChange={handleTemplateChange}
-          data-testid="template-selector"
-          style={{ flex: 1 }}
-        >
-          <option value="">Select a template...</option>
-          {templates.map((t) => (
-            <option key={t.id} value={t.id} data-testid={`template-${t.id}`}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-        <div className="view-toggle" style={{ display: 'flex', gap: '0.25rem' }}>
-          <button 
-            className={viewMode === 'edit' ? 'btn-active' : 'btn-secondary'}
-            onClick={() => setViewMode('edit')}
-            title="Edit"
-          >
-            ✏️
-          </button>
-          <button 
-            className={viewMode === 'preview' ? 'btn-active' : 'btn-secondary'}
-            onClick={() => setViewMode('preview')}
-            title="Preview"
-            data-testid="preview-btn"
-          >
-            👁️
-          </button>
-          <button 
-            className={viewMode === 'split' ? 'btn-active' : 'btn-secondary'}
-            onClick={() => setViewMode('split')}
-            title="Split"
-          >
-            ↔️
-          </button>
-        </div>
-      </div>
-      {pluginStats && (
-        <div className="plugin-stats" style={{ marginBottom: '1rem' }}>
-          {pluginStats['word-count'] && (
-            <span>Words: {pluginStats['word-count'].stats.words}</span>
-          )}
-          {pluginStats['reading-time'] && (
-            <span>Reading: {pluginStats['reading-time'].stats.readingTimeMinutes} min</span>
-          )}
-          {pluginStats['link-count'] && (
-            <span>Links: {pluginStats['link-count'].stats.totalLinks}</span>
-          )}
-        </div>
-      )}
-      <div style={{ marginBottom: '1rem' }}>
-        <TagInput 
-          tags={activeNote.tags} 
-          onAdd={handleTagAdd} 
-          onRemove={handleTagRemove} 
-        />
-      </div>
-      {(viewMode === 'edit' || viewMode === 'split') && (
-        <Editor
-          height={viewMode === 'split' ? 'calc(50vh - 150px)' : 'calc(100vh - 280px)'}
-          defaultLanguage="markdown"
+      
+      <div className="editor-content" data-color-mode="dark">
+        <MDEditor
           value={activeNote.content}
           onChange={handleEditorChange}
-          theme="vs-dark"
-          options={{
-            minimap: { enabled: false },
-            wordWrap: 'on',
-            fontSize: 14,
-            lineNumbers: 'off',
-            padding: { top: 16 }
-          }}
+          preview="live"
+          height="calc(100vh - 280px)"
+          data-color-mode="dark"
         />
-      )}
-      {(viewMode === 'preview' || viewMode === 'split') && (
-        <div 
-          className="markdown-preview"
-          data-testid="markdown-preview"
-          style={{
-            height: viewMode === 'split' ? 'calc(50vh - 150px)' : 'calc(100vh - 280px)',
-            overflow: 'auto',
-            padding: '1rem',
-            background: '#1e1e1e',
-            border: viewMode === 'split' ? '1px solid #333' : 'none',
-            borderRadius: '4px'
-          }}
-          dangerouslySetInnerHTML={{ __html: marked(activeNote.content || '') }}
-        />
-      )}
+      </div>
     </div>
   );
 }
