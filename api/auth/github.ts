@@ -16,9 +16,9 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
     console.warn('GITHUB_CLIENT_ID not configured - OAuth will not work');
   }
 
-  // Get the frontend origin for redirect URI
-  const origin = req.headers.origin || req.headers.referer || 'http://localhost:5173';
-  const redirectUri = `${origin}/api/auth/callback`;
+  // Use hardcoded production URL or environment variable for redirect URI
+  const productionUrl = process.env.APP_URL || 'https://noteshmd.vercel.app';
+  const redirectUri = `${productionUrl}/api/auth/callback`;
 
   // Generate random state for CSRF protection
   const state = Buffer.from(Math.random().toString(36) + Date.now().toString(36)).toString('base64');
